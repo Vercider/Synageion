@@ -1,4 +1,3 @@
-import os
 import sqlite3
 import bcrypt
 import streamlit as st
@@ -140,6 +139,7 @@ def get_all_users():
 def show_dashboard():
     # Wenn nicht eingeloggt, zeige Login/Register Tabs
     if not st.session_state.logged_in:
+        st.title("Willkommen bei Synageion")
         tab1, tab2 = st.tabs(["Anmelden", "Registrieren"])
         with tab1:
             login_form()
@@ -147,6 +147,7 @@ def show_dashboard():
             register_form()
         return
 
+    # Rest des Codes bleibt unverändert
     # Sidebar mit Benutzerinfo
     st.sidebar.title(f"👤 {st.session_state.username}")
     st.sidebar.text(f"Rolle: {st.session_state.role}")
@@ -169,11 +170,6 @@ def show_dashboard():
         st.session_state.username = None
         st.session_state.role = None
         st.rerun()
-
-#---- 2.Hauptseite ----
-st.set_page_config(page_title="SYNAGEION", layout="centered")# Seiteneinstellungen
-
-st.title("Willkommen bei Synageion\n Bitte anmelden bzw. registrieren:")
 
 #---- 3.Datenbank initialisieren ----
 init_db()
