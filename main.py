@@ -1,42 +1,45 @@
-import streamlit as st
-import bcrypt
+import os
 import sqlite3
-from datetime import datetime
+import bcrypt
+import streamlit as st
+from datetime import datetime, timedelta
+from functools import wraps
+from config import DB_NAME, ADMIN_USERNAME, ADMIN_PASSWORD
+from logger import setup_logger
+from database_setup import init_db as setup_db
 from permissions import requires_role, log_admin_action
-from constants import DB_NAME, VALID_ROLES, DEFAULT_ROLE
+from constants import VALID_ROLES, DEFAULT_ROLE
+
+# Logger initialisieren
+logger = setup_logger()
 
 # --- 1.Datenbank-Setup ---
 DB_NAME = "users.db"# Benneung der SQLite-Datenbankdatei
 
 #--- 1.1 Funktionen für die USER-Datenbank ---
 def init_db():
+    setup_db()
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            hashed_password TEXT NOT NULL,
-            role TEXT DEFAULT 'Vertriebler',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            last_login TIMESTAMP
-        )
-    """)
-
-    # Admin-Account erstellen, falls nicht vorhanden
-    admin_pw = hash_password("admin123")
-    c.execute("INSERT OR IGNORE INTO users (username, hashed_password, role) VALUES (?, ?, ?)",
-             ("admin", admin_pw, "Administrator"))
-    conn.commit()
+    
+    if ADMIN_PASSWORD and ADMIN_USERNAME:
+        admin_pw = hash_password(ADMIN_PASSWORD)
+        c.execute("""
+            INSERT OR IGNORE INTO users (username, hashed_password, role_id) 
+            VALUES (?, ?, (SELECT role_id FROM roles WHERE role_name = 'Administrator'))
+        """, (ADMIN_USERNAME, admin_pw))
+        conn.commit()
     conn.close()
 
 #--- 1.2 Funktionen für die USER-Verwaltung ---
-def register_user_db(username, hashed_password, role="Vertriebler"):
+def register_user_db(username, hashed_password, role=DEFAULT_ROLE):
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     try:
-        c.execute("INSERT INTO users (username, hashed_password, role) VALUES (?, ?, ?)",
-                 (username, hashed_password, role))
+        c.execute("""
+            INSERT INTO users (username, hashed_password, role_id)  
+            SELECT ?, ?, role_id FROM roles WHERE role_name = ?
+        """, (username, hashed_password, role))
         conn.commit()
         return True
     except sqlite3.IntegrityError:
@@ -44,20 +47,36 @@ def register_user_db(username, hashed_password, role="Vertriebler"):
     finally:
         conn.close()
 
+# Session-Management mit timedelta
+SESSION_TIMEOUT = timedelta(minutes=30)
+
+def check_session_timeout():
+    if 'last_activity' in st.session_state:
+        if datetime.now() - st.session_state.last_activity > SESSION_TIMEOUT:
+            st.session_state.clear()
+            return True
+    st.session_state.last_activity = datetime.now()
+    return False
+
 #--- 1.3 Funktionen für die USER-Authentifizierung ---
 def get_user_db(username):
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    c.execute("SELECT hashed_password, role FROM users WHERE username = ?", (username,))
+    c.execute("""
+        SELECT u.hashed_password, r.role_name  
+        FROM users u
+        JOIN roles r ON u.role_id = r.role_id
+        WHERE u.username = ?
+    """, (username,))
     result = c.fetchone()
     conn.close()
     return result if result else (None, None)
 
 def hash_password(password):
-    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')# Hashen des Passworts
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
 
 def check_password(password, hashed):
-    return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))# Überprüfung des Passworts gegen den Hash
+    return bcrypt.checkpw(password.encode('utf-8'), hashed)
 
 #--- 1.4 Admin-Funktionen ---
 #-- 1.4.1 Benutzerrolle aktualisieren --
@@ -87,15 +106,24 @@ def update_user_role(username, new_role):
 def get_all_users():
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
-    c.execute("SELECT username, role FROM users")
-    users = c.fetchall()
-    conn.close()
-    return users
+    try:
+        c.execute("""
+            SELECT u.username, r.role_name
+            FROM users u
+            JOIN roles r ON u.role_id = r.role_id
+        """)
+        users = c.fetchall()
+        return users
+    except sqlite3.Error as e:
+        logger.error(f"Error fetching users: {e}")
+        return []
+    finally:
+        conn.close()
 
 #---- 2.Hauptseite ----
 st.set_page_config(page_title="SYNAGEION", layout="centered")# Seiteneinstellungen
 
-st.title("Willkommen bei Synageion\n Bitte anmelden bzw. registrieren:")#
+st.title("Willkommen bei Synageion\n Bitte anmelden bzw. registrieren:")
 
 #---- 3.Datenbank initialisieren ----
 init_db()
@@ -103,10 +131,15 @@ init_db()
 #---- 4.Session State initialisieren ----
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
+
 if "username" not in st.session_state:
-    st.session_state.username = ""
-if "role" not in st.session_state:  # Neue Zeile
-    st.session_state.role = ""
+    st.session_state.username = None
+
+if "role" not in st.session_state:
+    st.session_state.role = None
+
+if "last_activity" not in st.session_state:
+    st.session_state.last_activity = datetime.now()
 
 #---- 5.Funktionen für die Formulare ----
 #--- 5.1 Login-Formular ---
@@ -165,28 +198,33 @@ def register_form():
                 st.error("Dieser Benutzername existiert bereits.")
 
 #--- 5.3 Admin-Benutzerverwaltung ---
+@requires_role("Administrator")
 def admin_panel():
-    st.subheader("Benutzerverwaltung")# Admin-Benutzerverwaltungsbereich im subheader
-    users = get_all_users()# Alle Benutzer aus der Datenbank abrufen
-
-    for username, current_role in users:
-        col1, col2, col3 = st.columns([2, 2, 1])# Spaltenlayout für Benutzerinformationen und Rollenänderung
+    st.subheader("Admin-Panel - Benutzerverwaltung")
+    
+    users = get_all_users()
+    
+    st.write("Benutzerrollen ändern:")
+    for username, current_role in users:  # Jetzt werden genau 2 Werte entpackt
+        col1, col2 = st.columns(2)
         with col1:
-            st.text(username)
+            st.write(f"Benutzer: {username}")
         with col2:
             new_role = st.selectbox(
-                "Rolle", 
-                ["Administrator", "Einkäufer", "Logistiker", "Vertriebler"],
-                index=["Administrator", "Einkäufer", "Logistiker", "Vertriebler"].index(current_role),
+                f"Rolle für {username}",
+                options=VALID_ROLES,
+                index=VALID_ROLES.index(current_role),
                 key=f"role_{username}"
             )
-        with col3:
-            if st.button("Speichern", key=f"update_{username}"):
-                if update_user_role(username, new_role):
-                    st.success(f"Rolle von {username} zu {new_role} geändert.")
-                else:
-                    st.error("Fehler beim Aktualisieren der Rolle.")
-
+            if new_role != current_role:
+                if st.button(f"Rolle ändern für {username}"):
+                    update_user_role(username, new_role)
+                    log_admin_action(st.session_state.username, 
+                                   "role_change", 
+                                   f"{username}: {current_role} -> {new_role}")
+                    st.success(f"Rolle für {username} zu {new_role} geändert!")
+                    st.rerun()
+                    
 #---- 6. Hauptlogik ----
 if st.session_state.logged_in:
     st.write(f"Hallo {st.session_state.username}! Sie sind angemeldet als {st.session_state.role}.")

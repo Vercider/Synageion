@@ -1,7 +1,5 @@
 import sqlite3
-from datetime import datetime
-
-DB_NAME = "users.db"
+from config import DB_NAME
 
 def init_db():
     try:
@@ -16,60 +14,43 @@ def init_db():
             )
         ''')
 
-        # Berechtigungs-Tabelle
-        c.execute('''
-            CREATE TABLE IF NOT EXISTS permissions (
-                permission_id INTEGER PRIMARY KEY,
-                permission_name TEXT UNIQUE NOT NULL
-            )
-        ''')
+        # Standard-Rollen einfügen
+        roles = [
+            (1, "Administrator"),
+            (2, "Einkäufer"),
+            (3, "Logistiker"),
+            (4, "Vertriebler")
+        ]
+        c.executemany("INSERT OR IGNORE INTO roles (role_id, role_name) VALUES (?, ?)", roles)
 
-        # Benutzer-Tabelle mit Rollenzuweisung
+        # Benutzer-Tabelle
         c.execute('''
             CREATE TABLE IF NOT EXISTS users (
                 user_id INTEGER PRIMARY KEY,
                 username TEXT UNIQUE NOT NULL,
-                password_hash TEXT NOT NULL,
+                hashed_password TEXT NOT NULL,
                 role_id INTEGER,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_login TIMESTAMP,
                 FOREIGN KEY (role_id) REFERENCES roles(role_id)
             )
         ''')
 
-        # Rollen-Berechtigungen Verknüpfungstabelle
-        c.execute('''
-            CREATE TABLE IF NOT EXISTS role_permissions (
-                role_id INTEGER,
-                permission_id INTEGER,
-                FOREIGN KEY (role_id) REFERENCES roles(role_id),
-                FOREIGN KEY (permission_id) REFERENCES permissions(permission_id),
-                PRIMARY KEY (role_id, permission_id)
-        ''')
-
-        # Admin-Aktionen Log-Tabelle
+        # Admin-Logs-Tabelle
         c.execute('''
             CREATE TABLE IF NOT EXISTS admin_logs (
                 log_id INTEGER PRIMARY KEY,
-                admin_user_id INTEGER,
+                admin_id INTEGER,
                 action TEXT NOT NULL,
                 target TEXT NOT NULL,
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (admin_user_id) REFERENCES users(user_id)
+                FOREIGN KEY (admin_id) REFERENCES users(user_id)
             )
         ''')
 
-    # Standard-Rollen definieren
-        roles = [
-            (1, "Adminstrator"),
-            (2, "Einkäufer"),
-            (3, "Logistiker"),
-            (4, "Vertreibler")
-    ]
-        
-        c.executemany('INSERT OR IGNORE INTO roles (role_id, role_name) VALUES (?, ?)', roles)
-
         conn.commit()
     except sqlite3.Error as e:
-        print(f"Datenbankfehler beim Setup: {e}")
-        raise
-    conn.close()
+        print(f"Database error: {e}")
+        raise e
+    finally:
+        conn.close()
