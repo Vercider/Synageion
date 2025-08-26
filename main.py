@@ -10,7 +10,7 @@ from database_setup import init_db as setup_db
 from permissions import requires_role, log_admin_action
 from constants import VALID_ROLES, DEFAULT_ROLE
 from role_functions import (
-    show_admin_functions, 
+    show_admin_functions,
     show_purchase_functions,
     show_logistics_functions,
     show_sales_functions
@@ -138,18 +138,37 @@ def get_all_users():
         conn.close()
 
 def show_dashboard():
+    # Wenn nicht eingeloggt, zeige Login/Register Tabs
+    if not st.session_state.logged_in:
+        tab1, tab2 = st.tabs(["Anmelden", "Registrieren"])
+        with tab1:
+            login_form()
+        with tab2:
+            register_form()
+        return
+
+    # Sidebar mit Benutzerinfo
     st.sidebar.title(f"👤 {st.session_state.username}")
     st.sidebar.text(f"Rolle: {st.session_state.role}")
     
-    if st.session_state.logged_in:
-        if st.session_state.role == "Administrator":
-            show_admin_functions()
-        elif st.session_state.role == "Einkäufer":
-            show_purchase_functions()
-        elif st.session_state.role == "Logistiker":
-            show_logistics_functions()
-        elif st.session_state.role == "Vertriebler":
-            show_sales_functions()
+    # Rollenspezifische Funktionen aufrufen
+    if st.session_state.role == "Administrator":
+        show_admin_functions()
+    elif st.session_state.role == "Einkäufer":
+        show_purchase_functions()
+    elif st.session_state.role == "Logistiker":
+        show_logistics_functions()
+    elif st.session_state.role == "Vertriebler":
+        show_sales_functions()
+    else:
+        st.error("Unbekannte Benutzerrolle")
+
+    # Abmelden-Button
+    if st.sidebar.button("Abmelden"):
+        st.session_state.logged_in = False
+        st.session_state.username = None
+        st.session_state.role = None
+        st.rerun()
 
 #---- 2.Hauptseite ----
 st.set_page_config(page_title="SYNAGEION", layout="centered")# Seiteneinstellungen
@@ -256,27 +275,20 @@ def admin_panel():
                     st.success(f"Rolle für {username} zu {new_role} geändert!")
                     st.rerun()
                     
-#---- 6. Hauptlogik ----
-if st.session_state.logged_in:
-    st.write(f"Hallo {st.session_state.username}! Sie sind angemeldet als {st.session_state.role}.")
 
-    # Admin-Panel nur für Administratoren anzeigen
-    if st.session_state.role == "Administrator":
-        admin_panel()
+if __name__ == "__main__":
+    st.set_page_config(page_title="SYNAGEION", layout="centered")
+    init_db()
     
-    # Abmelden-Button
-    if st.button("Abmelden"):
+    # Session State initialisieren
+    if "logged_in" not in st.session_state:
         st.session_state.logged_in = False
-        st.session_state.username = ""# Session-Status zurücksetzen
-        st.session_state.role = ""
-        st.info("Sie wurden abgemeldet.")#  Abmeldebestätigung
-        st.rerun()
-
-else:
-    tab1, tab2 = st.tabs(["Anmelden", "Registrieren"])# Tabs für Anmelden und Registrieren
-
-    with tab1:
-        login_form()
-
-    with tab2:
-        register_form()
+    if "username" not in st.session_state:
+        st.session_state.username = None
+    if "role" not in st.session_state:
+        st.session_state.role = None
+    if "last_activity" not in st.session_state:
+        st.session_state.last_activity = datetime.now()
+    
+    # Dashboard anzeigen
+    show_dashboard()
