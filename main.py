@@ -9,6 +9,12 @@ from logger import setup_logger
 from database_setup import init_db as setup_db
 from permissions import requires_role, log_admin_action
 from constants import VALID_ROLES, DEFAULT_ROLE
+from role_functions import (
+    show_admin_functions, 
+    show_purchase_functions,
+    show_logistics_functions,
+    show_sales_functions
+)
 
 # Logger initialisieren
 logger = setup_logger()
@@ -119,6 +125,20 @@ def get_all_users():
         return []
     finally:
         conn.close()
+
+def show_dashboard():
+    st.sidebar.title(f"👤 {st.session_state.username}")
+    st.sidebar.text(f"Rolle: {st.session_state.role}")
+    
+    if st.session_state.logged_in:
+        if st.session_state.role == "Administrator":
+            show_admin_functions()
+        elif st.session_state.role == "Einkäufer":
+            show_purchase_functions()
+        elif st.session_state.role == "Logistiker":
+            show_logistics_functions()
+        elif st.session_state.role == "Vertriebler":
+            show_sales_functions()
 
 #---- 2.Hauptseite ----
 st.set_page_config(page_title="SYNAGEION", layout="centered")# Seiteneinstellungen
