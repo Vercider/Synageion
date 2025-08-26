@@ -1,2 +1,16 @@
-# Ausnahmen Datenbanken
+# Datenbanken
 *.db
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.env
+
+# Logs
+*.log 
+admin_actions.log
+
+# VS Code
+.vscode/
