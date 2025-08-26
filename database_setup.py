@@ -6,7 +6,8 @@ def init_db():
         conn = sqlite3.connect(DB_NAME)
         c = conn.cursor()
     
-        # Rollen-Tabelle
+        # Rollen-Tabelle - Hier die Änderung mit DROP TABLE
+        c.execute('DROP TABLE IF EXISTS roles')
         c.execute('''
             CREATE TABLE IF NOT EXISTS roles (
                 role_id INTEGER PRIMARY KEY,
@@ -14,14 +15,14 @@ def init_db():
             )
         ''')
 
-        # Standard-Rollen einfügen
+        # Standard-Rollen einfügen - Hier INSERT OR REPLACE statt INSERT OR IGNORE
         roles = [
             (1, "Administrator"),
             (2, "Einkäufer"),
             (3, "Logistiker"),
             (4, "Vertriebler")
         ]
-        c.executemany("INSERT OR IGNORE INTO roles (role_id, role_name) VALUES (?, ?)", roles)
+        c.executemany("INSERT OR REPLACE INTO roles (role_id, role_name) VALUES (?, ?)", roles)
 
         # Benutzer-Tabelle
         c.execute('''

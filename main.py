@@ -43,12 +43,19 @@ def register_user_db(username, hashed_password, role=DEFAULT_ROLE):
     c = conn.cursor()
     try:
         c.execute("""
-            INSERT INTO users (username, hashed_password, role_id)  
-            SELECT ?, ?, role_id FROM roles WHERE role_name = ?
+            INSERT INTO users (username, hashed_password, role_id)
+            SELECT ?, ?, role_id 
+            FROM roles 
+            WHERE role_name = ?
         """, (username, hashed_password, role))
         conn.commit()
+        logger.info(f"Neuer Benutzer registriert: {username} mit Rolle {role}")
         return True
     except sqlite3.IntegrityError:
+        logger.warning(f"Registrierung fehlgeschlagen - Benutzername existiert bereits: {username}")
+        return False
+    except sqlite3.Error as e:
+        logger.error(f"Datenbankfehler bei Registrierung: {e}")
         return False
     finally:
         conn.close()
@@ -94,7 +101,11 @@ def update_user_role(username, new_role):
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
     try:
-        c.execute("UPDATE users SET role = ? WHERE username = ?", (new_role, username))
+        c.execute("""
+            UPDATE users 
+            SET role_id = (SELECT role_id FROM roles WHERE role_name = ?) 
+            WHERE username = ?
+        """, (new_role, username))
         conn.commit()
         log_admin_action(
             st.session_state.username,
@@ -103,7 +114,7 @@ def update_user_role(username, new_role):
         )
         return True
     except sqlite3.Error as e:
-        print(f"Datenbankfehler: {e}")
+        logger.error(f"Datenbankfehler: {e}")
         return False
     finally:
         conn.close()
