@@ -60,6 +60,23 @@ def register_user_db(username, hashed_password, role=DEFAULT_ROLE):
     finally:
         conn.close()
 
+def update_password_db(username, new_hashed_password):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    try:
+        c.execute("""
+            UPDATE users 
+            SET hashed_password = ? 
+            WHERE username = ?
+        """, (new_hashed_password, username))
+        conn.commit()
+        return True
+    except sqlite3.Error as e:
+        logger.error(f"Password update failed for {username}: {e}")
+        return False
+    finally:
+        conn.close()
+
 def reset_password(username, old_password, new_password):
     conn = None
     try:
@@ -72,27 +89,17 @@ def reset_password(username, old_password, new_password):
         if not check_password(old_password, hashed_pw_from_db):
             return False, "Altes Passwort ist falsch"
             
-        # Setze neues Passwort
-        conn = sqlite3.connect(DB_NAME)
-        c = conn.cursor()
+        # Hash und speichere neues Passwort
         new_hashed_pw = hash_password(new_password)
-        c.execute("""
-            UPDATE users 
-            SET hashed_password = ? 
-            WHERE username = ?
-        """, (new_hashed_pw, username))
-        conn.commit()
-        conn.close()
-        
-        logger.info(f"Passwort zurückgesetzt für Benutzer: {username}")
-        return True, "Passwort erfolgreich geändert"
-        
-    except sqlite3.Error as e:
-        logger.error(f"Fehler beim Passwort-Reset: {e}")
-        return False, f"Datenbankfehler: {e}"
-    finally:
-        if conn:
-            conn.close()
+        if update_password_db(username, new_hashed_pw):
+            logger.info(f"Password successfully reset for user: {username}")
+            return True, "Passwort erfolgreich geändert"
+        else:
+            return False, "Fehler beim Speichern des neuen Passworts"
+            
+    except Exception as e:
+        logger.error(f"Password reset failed for {username}: {e}")
+        return False, f"Fehler beim Zurücksetzen des Passworts: {e}"
 
 # Session-Management mit timedelta
 SESSION_TIMEOUT = timedelta(minutes=30)

@@ -49,6 +49,29 @@ def init_db():
             )
         ''')
 
+        # Artikelstamm - Vereinfachte Version
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS articles (
+                article_id INTEGER PRIMARY KEY,
+                article_number TEXT UNIQUE NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT,
+                min_stock INTEGER DEFAULT 0,
+                status TEXT DEFAULT 'aktiv'
+            )
+        ''')
+
+        # Ein Beispielartikel
+        example_article = [
+            ('ART001', 'ThinkPad X1 Carbon', 'Business Laptop der Oberklasse', 5, 'aktiv')
+        ]
+        
+        c.executemany("""
+            INSERT OR IGNORE INTO articles 
+            (article_number, name, description, min_stock, status)
+            VALUES (?, ?, ?, ?, ?)
+        """, example_article)       
+
         conn.commit()
     except sqlite3.Error as e:
         print(f"Database error: {e}")

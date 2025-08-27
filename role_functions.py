@@ -1,5 +1,7 @@
 import streamlit as st
+import sqlite3
 from permissions import requires_role
+from config import DB_NAME
 
 @requires_role("Administrator")
 def show_admin_functions():
@@ -11,17 +13,6 @@ def show_admin_functions():
         admin_panel()
     with tab2:
         show_admin_logs()
-
-@requires_role("Einkäufer")
-def show_purchase_functions():
-    st.title("🛒 Einkäufer Dashboard")
-    st.write(f"Willkommen im Einkaufsmanagement, {st.session_state.username}!")
-    
-    tab1, tab2 = st.tabs(["📦 Bestellungen", "🏢 Lieferanten"])
-    with tab1:
-        show_orders()
-    with tab2:
-        show_suppliers()
 
 @requires_role("Logistiker")
 def show_logistics_functions():
@@ -49,6 +40,80 @@ def show_sales_functions():
     with tab3:
         show_forecasts()
 
+def add_article(article_number, name, description, min_stock, status="aktiv"):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    try:
+        c.execute("""
+            INSERT INTO articles (article_number, name, description, min_stock, status)
+            VALUES (?, ?, ?, ?, ?)
+        """, (article_number, name, description, min_stock, status))
+        conn.commit()
+        return True, "Artikel erfolgreich angelegt"
+    except sqlite3.IntegrityError:
+        return False, "Artikelnummer existiert bereits"
+    except sqlite3.Error as e:
+        return False, f"Datenbankfehler: {e}"
+    finally:
+        conn.close()
+
+def get_all_articles():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    try:
+        c.execute("SELECT article_number, name, description, min_stock, status FROM articles")
+        return c.fetchall()
+    except sqlite3.Error:
+        return []
+    finally:
+        conn.close()
+
+@requires_role("Einkäufer")
+def show_purchase_functions():
+    st.title("🛒 Einkäufer Dashboard")
+    st.write(f"Willkommen im Einkaufsmanagement, {st.session_state.username}!")
+    
+    tab1, tab2 = st.tabs(["📦 Artikelstamm", "➕ Neuer Artikel"])
+    
+    with tab1:
+        st.subheader("Artikelübersicht")
+        articles = get_all_articles()
+        if articles:
+            # Konvertiere die Artikel in ein Dictionary für das DataFrame
+            articles_dict = {
+                "Artikelnummer": [a[0] for a in articles],
+                "Name": [a[1] for a in articles],
+                "Beschreibung": [a[2] for a in articles],
+                "Mindestbestand": [a[3] for a in articles],
+                "Status": [a[4] for a in articles]
+            }
+            st.dataframe(articles_dict)
+        else:
+            st.info("Keine Artikel vorhanden")
+    
+    with tab2:
+        st.subheader("Neuen Artikel anlegen")
+        with st.form("new_article_form"):
+            article_number = st.text_input("Artikelnummer")
+            name = st.text_input("Artikelname")
+            description = st.text_area("Beschreibung")
+            min_stock = st.number_input("Mindestbestand", min_value=0, value=0)
+            status = st.selectbox("Status", ["aktiv", "inaktiv"])
+            
+            submitted = st.form_submit_button("Artikel anlegen")
+            if submitted:
+                if not article_number or not name:
+                    st.error("Artikelnummer und Name sind erforderlich!")
+                else:
+                    success, message = add_article(
+                        article_number, name, description, min_stock, status
+                    )
+                    if success:
+                        st.success(message)
+                        st.rerun()
+                    else:
+                        st.error(message)
+                        
 # Hilfsfunktionen für die einzelnen Bereiche
 def show_orders():
     st.subheader("Bestellverwaltung")
