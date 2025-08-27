@@ -7,7 +7,7 @@ from config import DB_NAME, ADMIN_USERNAME, ADMIN_PASSWORD
 from logger import setup_logger
 from database_setup import init_db as setup_db
 from permissions import requires_role, log_admin_action
-from constants import VALID_ROLES, DEFAULT_ROLE
+from constants import VALID_ROLES, DEFAULT_ROLE, MIN_PASSWORD_LENGTH, MIN_USERNAME_LENGTH
 from role_functions import (
     show_admin_functions,
     show_purchase_functions,
@@ -17,12 +17,12 @@ from role_functions import (
 
 # Logger initialisieren
 logger = setup_logger()
+logger.info("Starting application...")
 
-# --- 1.Datenbank-Setup ---
-DB_NAME = "users.db"# Benneung der SQLite-Datenbankdatei
 
 #--- 1.1 Funktionen für die USER-Datenbank ---
 def init_db():
+    logger.info("Initializing database...")
     setup_db()
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
@@ -35,6 +35,7 @@ def init_db():
         """, (ADMIN_USERNAME, admin_pw))
         conn.commit()
     conn.close()
+    logger.info("Database initialization complete")
 
 #--- 1.2 Funktionen für die USER-Verwaltung ---
 def register_user_db(username, hashed_password, role=DEFAULT_ROLE):
@@ -59,12 +60,48 @@ def register_user_db(username, hashed_password, role=DEFAULT_ROLE):
     finally:
         conn.close()
 
+def reset_password(username, old_password, new_password):
+    conn = None
+    try:
+        # Überprüfe alte Anmeldedaten
+        result = get_user_db(username)
+        if not result:
+            return False, "Benutzer nicht gefunden"
+        
+        hashed_pw_from_db, _ = result
+        if not check_password(old_password, hashed_pw_from_db):
+            return False, "Altes Passwort ist falsch"
+            
+        # Setze neues Passwort
+        conn = sqlite3.connect(DB_NAME)
+        c = conn.cursor()
+        new_hashed_pw = hash_password(new_password)
+        c.execute("""
+            UPDATE users 
+            SET hashed_password = ? 
+            WHERE username = ?
+        """, (new_hashed_pw, username))
+        conn.commit()
+        conn.close()
+        
+        logger.info(f"Passwort zurückgesetzt für Benutzer: {username}")
+        return True, "Passwort erfolgreich geändert"
+        
+    except sqlite3.Error as e:
+        logger.error(f"Fehler beim Passwort-Reset: {e}")
+        return False, f"Datenbankfehler: {e}"
+    finally:
+        if conn:
+            conn.close()
+
 # Session-Management mit timedelta
 SESSION_TIMEOUT = timedelta(minutes=30)
 
 def check_session_timeout():
     if 'last_activity' in st.session_state:
-        if datetime.now() - st.session_state.last_activity > SESSION_TIMEOUT:
+        inactive_time = datetime.now() - st.session_state.last_activity
+        if inactive_time > SESSION_TIMEOUT:
+            logger.info(f"Session timeout für User: {st.session_state.username}")
             st.session_state.clear()
             return True
     st.session_state.last_activity = datetime.now()
@@ -147,45 +184,70 @@ def show_dashboard():
             register_form()
         return
 
-    # Rest des Codes bleibt unverändert
-    # Sidebar mit Benutzerinfo
+    # Sidebar mit Benutzerinfo und Buttons
     st.sidebar.title(f"👤 {st.session_state.username}")
     st.sidebar.text(f"Rolle: {st.session_state.role}")
     
-    # Rollenspezifische Funktionen aufrufen
-    if st.session_state.role == "Administrator":
-        show_admin_functions()
-    elif st.session_state.role == "Einkäufer":
-        show_purchase_functions()
-    elif st.session_state.role == "Logistiker":
-        show_logistics_functions()
-    elif st.session_state.role == "Vertriebler":
-        show_sales_functions()
-    else:
-        st.error("Unbekannte Benutzerrolle")
-
-    # Abmelden-Button
-    if st.sidebar.button("Abmelden"):
-        st.session_state.logged_in = False
-        st.session_state.username = None
-        st.session_state.role = None
+    # Initialize session state for password reset view if not exists
+    if "show_pw_reset" not in st.session_state:
+        st.session_state.show_pw_reset = False
+    
+    # Password Reset Button in Sidebar
+    if st.sidebar.button("🔑 Passwort ändern", key="pw_change_btn"):
+        st.session_state.show_pw_reset = not st.session_state.show_pw_reset
+    
+    # Logout Button
+    if st.sidebar.button("Abmelden", key="logout_btn"):
+        st.session_state.clear()
         st.rerun()
+
+    # Show password reset form if button was clicked
+    if st.session_state.show_pw_reset:
+        with st.expander("Passwort ändern", expanded=True):
+            st.write("### Passwort ändern")
+            old_pw = st.text_input("Altes Passwort", type="password", key="old_pw")
+            new_pw = st.text_input("Neues Passwort", type="password", key="new_pw")
+            confirm_pw = st.text_input("Neues Passwort bestätigen", type="password", key="confirm_pw")
+            
+            col1, col2 = st.columns([1,3])
+            with col1:
+                if st.button("Speichern", key="save_pw_btn"):
+                    if new_pw != confirm_pw:
+                        st.error("Neue Passwörter stimmen nicht überein!")
+                    elif len(new_pw) < MIN_PASSWORD_LENGTH:
+                        st.error(f"Neues Passwort muss mindestens {MIN_PASSWORD_LENGTH} Zeichen lang sein!")
+                    else:
+                        success, message = reset_password(
+                            st.session_state.username,
+                            old_pw,
+                            new_pw
+                        )
+                        if success:
+                            st.success(message)
+                            st.session_state.show_pw_reset = False
+                            st.rerun()
+                        else:
+                            st.error(message)
+            with col2:
+                if st.button("Abbrechen", key="cancel_pw_btn"):
+                    st.session_state.show_pw_reset = False
+                    st.rerun()
+    
+    # Rollenspezifische Funktionen aufrufen
+    if not st.session_state.show_pw_reset:  # Only show dashboard if not in password reset view
+        if st.session_state.role == "Administrator":
+            show_admin_functions()
+        elif st.session_state.role == "Einkäufer":
+            show_purchase_functions()
+        elif st.session_state.role == "Logistiker":
+            show_logistics_functions()
+        elif st.session_state.role == "Vertriebler":
+            show_sales_functions()
+        else:
+            st.error("Unbekannte Benutzerrolle")
 
 #---- 3.Datenbank initialisieren ----
 init_db()
-
-#---- 4.Session State initialisieren ----
-if "logged_in" not in st.session_state:
-    st.session_state.logged_in = False
-
-if "username" not in st.session_state:
-    st.session_state.username = None
-
-if "role" not in st.session_state:
-    st.session_state.role = None
-
-if "last_activity" not in st.session_state:
-    st.session_state.last_activity = datetime.now()
 
 #---- 5.Funktionen für die Formulare ----
 #--- 5.1 Login-Formular ---
@@ -270,8 +332,54 @@ def admin_panel():
                                    f"{username}: {current_role} -> {new_role}")
                     st.success(f"Rolle für {username} zu {new_role} geändert!")
                     st.rerun()
-                    
 
+    # Passwort-Reset Sektion für Administratoren
+    st.write("---")
+    st.write("Benutzer-Passwörter zurücksetzen:")
+    reset_user = st.selectbox(
+        "Benutzer auswählen",
+        [user[0] for user in users],
+        key="reset_user"
+    )
+    new_password = st.text_input(
+        "Neues Passwort",
+        type="password",
+        key="admin_reset_pw"
+    )
+    confirm_password = st.text_input(
+    "Neues Passwort bestätigen",
+    type="password",
+    key="admin_reset_pw_confirm"
+)
+    
+    if st.button("Passwort zurücksetzen"):
+        if new_password != confirm_password:
+            st.error("Passwörter stimmen nicht überein!")
+        elif len(new_password) < 6:
+            st.error("Neues Passwort muss mindestens 6 Zeichen lang sein!")
+        else:
+            try:
+                conn = sqlite3.connect(DB_NAME)
+                c = conn.cursor()
+                new_hashed_pw = hash_password(new_password)
+                c.execute("""
+                    UPDATE users 
+                    SET hashed_password = ? 
+                    WHERE username = ?
+                """, (new_hashed_pw, reset_user))
+                conn.commit()
+                conn.close()
+                
+                log_admin_action(
+                    st.session_state.username,
+                    "password_reset",
+                    f"Reset password for user: {reset_user}"
+                )
+                st.success(f"Passwort für {reset_user} wurde zurückgesetzt!")
+            except sqlite3.Error as e:
+                st.error(f"Fehler beim Zurücksetzen: {e}")
+
+                    
 if __name__ == "__main__":
     st.set_page_config(page_title="SYNAGEION", layout="centered")
     init_db()
