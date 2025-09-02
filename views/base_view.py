@@ -6,17 +6,12 @@ class BaseView:
 
     # ---- 3.4.1 Header der Basis-Ansicht ----
     def render_header(self, title, subtitle=None):
-        """Rendert Header mit Titel und Logout-Button"""
-        col1, col2 = st.columns([4, 1])
-
-        with col1:
-            st.title(title)
-            if subtitle:
-                st.write(subtitle)
-
-        with col2:
-            if st.button("🚪 Abmelden", key="logout_button", help="Aus der Anwendung abmelden"):
-                self._handle_logout()
+        """Rendert Header OHNE Logout-Button"""
+        # Vollbreiter Titel (keine Spalten)
+        st.title(title)
+        if subtitle:
+            st.write(subtitle)
+            
 
     # ---- 3.4.2 Allgemeiner Logout-Handler ----
     def _handle_logout(self):
