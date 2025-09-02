@@ -20,7 +20,8 @@ def init_db():
             (1, "Administrator"),
             (2, "Einkäufer"),
             (3, "Logistiker"),
-            (4, "Vertriebler")
+            (4, "Vertriebler"),
+            (5, "Wartend")
         ]
         c.executemany("INSERT OR REPLACE INTO roles (role_id, role_name) VALUES (?, ?)", roles)
 
