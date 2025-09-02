@@ -3,6 +3,7 @@ from controllers.session_controller import SessionController
 from views.auth_view import AuthView
 from views.admin_view import AdminView
 from views.purchase_view import PurchaseView
+from views.logistics_view import LogisticsView
 from database_setup import init_db
 
 
@@ -16,7 +17,8 @@ class Application:
         self.views = {
             "Administrator": AdminView(),
             "Einkäufer": PurchaseView(),
-            # PLACEHOLDER für weiter Views
+            "Logistiker": LogisticsView(),
+            # "Vertriebler": SalesView()
         }
 
     # --- Ausführung der Views ---
