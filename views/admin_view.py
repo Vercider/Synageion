@@ -233,4 +233,136 @@ class AdminView:
                     st.error(error)
             else:
                 st.error(message)
-                        
+
+    # ---- 3.3.8 User-Statistiken ----
+    def _render_statistics(self):
+        """Zeigt User-Statistiken und Dashboard"""
+        st.subheader("📊 User-Statistiken")
+
+        stats, error = self.controller.get_user_statistics()
+
+        if error:
+            st.error(f"Fehler beim Laden der Statistiken: {error}")
+            return
+        
+        if not stats:
+            st.info("Keine Statistiken verfügbar")
+            return
+        
+        # Gesamt-User-Zahl
+        total_users = sum(stats.values())
+        st.metric("👥 Gesamt-User", total_users)
+
+        # Statistiken in Spalten anzeigen
+        st.subheader("📈 User-Verteilung nach Rollen")
+
+        # Dynamische Spalten je nach Anzahl Rollen
+        roles = list(stats.keys())
+        cols = st.columns(len(roles))
+
+        # Farb-Mapping für Rollen
+        role_colors = {
+            "Administrator": "🔴",
+            "Einkäufer": "🟢",
+            "Logistiker": "🔵",
+            "Vertriebler": "🟡",
+            "Wartend": "🟠"
+        }
+
+        for i, role in enumerate(roles):
+            with cols[i]:
+                color = role_colors.get(role, "⚪")
+                count = stats[role]
+                percentage = (count / total_users * 100) if total_users > 0 else 0
+
+                st.metric(
+                    f"{color} {role}",
+                    f"{count} User",
+                    f"{percentage:.1f}%"
+                )
+        
+        # Grafische Darstellung
+        st.subheader("📊 Visualisierung")
+
+        # Chart-Daten vorbereiten
+        chart_data = {
+            "Rolle": list(stats.keys()),
+            "Anzahl": list(stats.values())
+        }
+
+        # Bar-Chart
+        st.bar_chart(data=chart_data, x="Rolle", y="Anzahl")
+
+        # Warnungen für kritische Zustände
+        st.subheader("⚠️ System-Hinweise")
+
+        # Warning wenn zu viele wartende User
+        waiting_count = stats.get("Wartend", 0)
+        if waiting_count > 5:
+            st.warning(f"🚨 {waiting_count} User warten auf Freischaltung!")
+        elif waiting_count > 0:
+            st.info(f"💡 {waiting_count} User warten auf Freischaltung")
+        else:
+            st.success("✅ Keine wartenden User")
+
+        # Warnung wenn nur ein Administrator
+        admin_count = stats.get("Administrator", 0)
+        if admin_count <= 1:
+            st.warning("⚠️ Nur ein Administrator vorhanden - Backup-Admin empfohlen!")
+        else:
+            st.success(f"✅ {admin_count} Administrator vorhanden")
+
+    # ----  3.3.9 System-Informationen anzeigen ----
+    def _render_system_info(self):
+        """Zeigt System- und Datenbank-Informationen"""
+        st.subheader("🔧 System-Informationen")
+
+        # System-Status
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.write("**📱 Anwendung:**")
+            st.info("SYNAGEION v2.0 (MVC)")
+            st.write("- ✅ MVC-Architektur")
+            st.write("- ✅ Sichere Authentifizierung")
+            st.write("- ✅ Rollenbasierte Zugriffe")
+
+        with col2:
+            st.write("**🗄️ Datenbank:**")
+            st.info("SQLite Datenbank")
+            st.write("- ✅ User-Verwaltung")
+            st.write("- ✅ Artikel-Verwaltung")
+            st.write("- ✅ Rollen-System")
+
+        # Aktueller Admin
+        st.write("**👤 Aktueller Administrator:**")
+        st.success(f"Angemeldet als: {st.session_state.username}")
+
+        # System-Aktionen
+        st.subheader("🛠️ System-Aktionen")
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            if st.button("🔄 App neu starten", help="Streamlit App neu laden"):
+                st.rerun()
+
+        with col2:
+            if st.button("📊 Cache leeren", help="Streamlit Cache leeren"):
+                st.cache_data.clear()
+                st.success("Cache geleert!")
+
+        with col3:
+            if st.button("🚪 Abmelden", help="Aus dem Admin-Panel abmelden"):
+                st.session_state.clear()
+                st.rerun()
+
+        # Entwickler-Informationen
+        st.subheader("👨‍💻 Entwickler-Info")
+        st.write("**Architektur:** Model-View-Controller (MVC)")
+        st.write("**Framework:** Streamlit + SQLite")
+        st.write("**Sicherheit:** bcrypt + rollenbasiert")
+
+        # Footer
+        st.divider()
+        st.caption("SYNAGEION - Modernes Warenwirtschaftssystem")       
