@@ -35,11 +35,7 @@ class Application:
         if role in self.views:
             self.views[role].render()
         elif role == "Wartend":
-            st.warning("⏳ Ihr Account wartet auf Freischaltung durch einen Administrator.")
-            st.info("📧 Sie werden benachrichtigt sobald Ihre Rolle zugewiesen wurde.")
-            if st.button("Abmelden"):
-                st.session_state.clear()
-                st.rerun()
+            self.auth_view.render_waiting_status()
 
 if __name__ == "__main__":
     st.set_page_config(page_title="SYNAGEION", layout="centered")

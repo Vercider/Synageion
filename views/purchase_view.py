@@ -1,9 +1,10 @@
 import streamlit as st
 from controllers.purchase_controller import PurchaseController
+from views.base_view import BaseView
 
 # ----- 3.0 VIEWS -----
 # ---- 3.1 Einkaufs-View ----
-class PurchaseView:
+class PurchaseView(BaseView):
     # --- 3.1.1 Einkaufs-View Initialisierung ---
     def __init__(self):
         """Initialisierung der Purchase View"""
@@ -12,10 +13,15 @@ class PurchaseView:
     # --- 3.1.2 Hauptansicht rendern ---
     def render(self):
         """Rendert das komplette Einkäufer-Dashboard"""
-        st.title("🛒 Einkäufer Dashboard")
-        st.write(f"Willkommen im Einkaufsmanagement, {st.session_state.username}!")
 
-        tab1, tab2, tab3 = st.tabs(["📦 Artikelübersicht","➕ Neuer Artikel anlegen","✏️ Artikel bearbeiten"])
+        # Header mit Logout
+        self.render_header("🛒 Einkauf - Artikelverwaltung", 
+                          f"Willkommen, {st.session_state.username}!")
+        
+        # Sidebar mit User-Info
+        self.render_user_info()
+
+        tab1, tab2, tab3 = st.tabs(["📦 Artikelübersicht", "➕ Neuer Artikel anlegen", "✏️ Artikel bearbeiten"])
 
         with tab1:
             self._render_article_list()
@@ -86,7 +92,7 @@ class PurchaseView:
                 help="Optionale Beschreibung"
             )
 
-            col1, col2 = st.columns(2) # 2 Spalten
+            col1, col2 = st.columns(2)  # 2 Spalten
 
             with col1:
                 min_stock = st.number_input(
@@ -99,8 +105,8 @@ class PurchaseView:
             with col2:
                 status = st.selectbox(
                     "Status",
-                    options=["aktiv","inaktiv"],
-                    index=0, # "aktiv" als Standard
+                    options=["aktiv", "inaktiv"],
+                    index=0,  # "aktiv" als Standard
                     help="Artikelstatus"
                 )
 
@@ -119,7 +125,7 @@ class PurchaseView:
 
     # --- 3.1.5 Neuer Artikel Verarbeitung ---
     def _handle_new_article_submission(self, article_number, name, description, min_stock, status):
-        """Verarbeitet die Eingaben des Neuer-Artikel-Formulars """
+        """Verarbeitet die Eingaben des Neuer-Artikel-Formulars"""
 
         # Client-seitige Validierung
         if not article_number.strip():
@@ -145,7 +151,7 @@ class PurchaseView:
         # Ergebnis anzeigen
         if success:
             st.success(message)
-            st.balloons() # Erfolgs-Animation
+            st.balloons()  # Erfolgs-Animation
             # Seite neu laden um Artikelliste zu aktualisieren
             st.rerun()
         else:
@@ -170,7 +176,7 @@ class PurchaseView:
             return
         
         # Artikel-Auswahl-Dropdown-Menü
-        article_options ={}
+        article_options = {}
         for article in articles:
             display_name = f"{article.article_number} - {article.name} ({article.status})"
             article_options[display_name] = article.article_id

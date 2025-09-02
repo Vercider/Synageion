@@ -139,7 +139,23 @@ class AuthView:
 
         if success:
             st.success(message)
-            st.info("🎉 Sie können sich jetzt anmelden! Ihre Rolle wird vom Administrator zugewiesen.")
+            st.info("🎉 Sie können sich jetzt anmelden! Ihre Rolle wird von einem Administrator zugewiesen.")
             st.balloons()
         else:
             st.error(message)
+
+    # ---- 3.2.7 Ansicht für wartende User ----
+    def render_waiting_status(self):
+        """Spezielle Ansicht für wartende User"""
+        st.title("⏳ Account wartet auf Freischaltung")
+        st.warning("Ihr Account wartet auf Freischaltung durch einen Administrator.")
+        st.info("📧 Sie werden benachrichtigt sobald Ihre Rolle zugewiesen wurde.")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 Status prüfen"):
+                st.rerun()
+        with col2:
+            if st.button("🚪 Abmelden"):
+                st.session_state.clear()
+                st.rerun() 
