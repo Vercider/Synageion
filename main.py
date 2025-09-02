@@ -4,6 +4,7 @@ from views.auth_view import AuthView
 from views.admin_view import AdminView
 from views.purchase_view import PurchaseView
 from views.logistics_view import LogisticsView
+from views.sales_view import SalesView
 from database_setup import init_db
 
 
@@ -18,7 +19,7 @@ class Application:
             "Administrator": AdminView(),
             "Einkäufer": PurchaseView(),
             "Logistiker": LogisticsView(),
-            # "Vertriebler": SalesView()
+            "Vertriebler": SalesView()
         }
 
     # --- Ausführung der Views ---
