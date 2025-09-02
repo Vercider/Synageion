@@ -1,9 +1,10 @@
 import streamlit as st
 from controllers.admin_controller import AdminController
 from constants import ACTIVE_ROLES
+from views.base_view import BaseView  # ← HINZUFÜGEN
 
 # ----- 3.3 ADMIN-View -----
-class AdminView:
+class AdminView(BaseView):  # ← (BaseView) hinzufügen
     # ---- 3.3.1 Admin-View-Initialisierung ----
     def __init__(self):
         """Initialisierung der AdminView"""
@@ -12,10 +13,15 @@ class AdminView:
     # ---- 3.3.2 Hauptansicht rendern ----
     def render(self):
         """Rendert das komplette Admin-Dashboard"""
-        st.title("🛡️ Administrator Dashboard")
-        st.write(f"Willkommen im Admin-Panel, {st.session_state.username}!")
-
-        # Tab-Navigation erstellen
+        
+        # Header (einheitlich mit anderen Views)
+        self.render_header("🛡️ Administrator Dashboard", 
+                          f"Willkommen im Admin-Panel, {st.session_state.username}!")
+        
+        # Sidebar mit User-Info und Logout
+        self.render_user_info()
+        
+        # Tab-Navigation
         tab1, tab2, tab3, tab4 = st.tabs([
             "👥 User-Verwaltung", 
             "⏳ Wartende User", 
@@ -316,7 +322,7 @@ class AdminView:
     def _render_system_info(self):
         """Zeigt System- und Datenbank-Informationen"""
         st.subheader("🔧 System-Informationen")
-
+        
         # System-Status
         col1, col2 = st.columns(2)
 
@@ -341,20 +347,14 @@ class AdminView:
         # System-Aktionen
         st.subheader("🛠️ System-Aktionen")
 
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
 
         with col1:
             if st.button("🔄 App neu starten", help="Streamlit App neu laden"):
                 st.rerun()
 
         with col2:
-            if st.button("📊 Cache leeren", help="Streamlit Cache leeren"):
-                st.cache_data.clear()
-                st.success("Cache geleert!")
-
-        with col3:
-            if st.button("🚪 Abmelden", help="Aus dem Admin-Panel abmelden"):
-                st.session_state.clear()
+            if st.button("🔄 Daten aktualisieren", help="Alle Daten neu laden"):
                 st.rerun()
 
         # Entwickler-Informationen
@@ -365,4 +365,4 @@ class AdminView:
 
         # Footer
         st.divider()
-        st.caption("SYNAGEION - Modernes Warenwirtschaftssystem")       
+        st.caption("SYNAGEION - Modernes Warenwirtschaftssystem")
