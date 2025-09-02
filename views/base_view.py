@@ -27,9 +27,20 @@ class BaseView:
 
     # ---- 3.4.3 Benutzer-Informationen handeln ----
     def render_user_info(self):
-        """Zeigt Benutzer-Informationen"""
+        """Zeigt Benutzer-Informationen inkl. Session-Info"""
         st.sidebar.write(f"**Angemeldet als:** {st.session_state.get('username', 'Unbekannt')}")
         st.sidebar.write(f"**Rolle:** {st.session_state.get('role', 'Unbekannt')}")
-
+        
+        # ✅ Session-Zeit anzeigen (optional)
+        if 'login_time' in st.session_state:
+            import time
+            elapsed = int(time.time() - st.session_state.login_time)
+            minutes = elapsed // 60
+            st.sidebar.caption(f"⏰ Angemeldet seit: {minutes} Min")
+            
+            # Warnung bei bald ablaufender Session
+            if elapsed > 1500:  # 25 Minuten (5 Min vor Ablauf)
+                st.sidebar.warning("⚠️ Session läuft bald ab!")
+        
         if st.sidebar.button("🚪 Abmelden", key="sidebar_logout"):
             self._handle_logout()

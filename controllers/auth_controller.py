@@ -11,7 +11,7 @@ class AuthController:
     
     # --- 2.2.2 Login-Authentifizierung ---
     def login_user(self, username, password):
-        """Überprüfe Login-Daten"""
+        """Benutzer anmelden"""
         try:
             conn = sqlite3.connect(DB_NAME)
             c = conn.cursor()
@@ -29,14 +29,18 @@ class AuthController:
             if result:
                 hashed_pw, role = result
                 if bcrypt.checkpw(password.encode("utf-8"), hashed_pw):
-                    return True, role, "Login erfolgreich"
+                    # ✅ Login-Zeit für Session-Timeout setzen
+                    import time
+                    st.session_state.login_time = time.time()  # ← HINZUFÜGEN
+                    
+                    return True, role, "Login erfolgreich!"
                 else:
                     return False, None, "Falsches Passwort"
             else:
                 return False, None, "Benutzer nicht gefunden"
             
         except Exception as e:
-            return False, None, f"Fehler: {str(e)}"
+            return False, None, f"Fehler beim Login: {str(e)}"
     
     # --- 2.2.3 User-Anlage ---
     def register_user(self, username, password, role):
@@ -61,4 +65,4 @@ class AuthController:
             return False, "Benutzername bereits vergeben"
         except Exception as e:
             return False, f"Fehler: {str(e)}"
-        
+

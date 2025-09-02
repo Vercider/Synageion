@@ -24,17 +24,22 @@ class Application:
 
     # --- Ausführung der Views ---
     def run(self):
-        # Prüfung des Timeouts
-        if self.session_controller.check_timeout():
-            return
+        """Hauptschleife der Anwendung"""
+        
+        # ✅ Session-Timeout prüfen (für eingeloggte User)
+        if st.session_state.get('logged_in', False):
+            if self.session_controller.check_timeout():
+                st.warning("⏰ Ihre Session ist abgelaufen. Bitte melden Sie sich erneut an.")
+                st.session_state.clear()
+                st.rerun()
         
         # Nicht eingeloggt -> AuthView
-        if not st.session_state.get("logged_in", False):
+        if not st.session_state.get('logged_in', False):
             self.auth_view.render()
             return
         
         # Eingeloggt -> Rollenbasierte View
-        role = st.session_state.get("role")
+        role = st.session_state.get('role')
         if role in self.views:
             self.views[role].render()
         elif role == "Wartend":
