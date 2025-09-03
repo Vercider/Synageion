@@ -2,6 +2,7 @@ import sqlite3
 import bcrypt
 import streamlit as st
 from config import DB_NAME
+from constants import MIN_PASSWORD_LENGTH
 
 # ---- 2.2 Authentifikator-Controller ----
 class AuthController:
@@ -65,4 +66,62 @@ class AuthController:
             return False, "Benutzername bereits vergeben"
         except Exception as e:
             return False, f"Fehler: {str(e)}"
+        
+    # --- 2.2.4 Passwort-Reset für alle Rollen ---
+    def change_password(self, username, old_password, new_password, confirm_password):
+        """Passwort für eingeloggten User ändern"""
+        try:
+            # Validierung
+            if not all([old_password, new_password, confirm_password]):
+                return False, "Alle Felder sind erforderlich"
+            
+            if new_password != confirm_password:
+                return False, "Neue Passwörter stimmen nicht überein"
+            
+            if len(new_password) < MIN_PASSWORD_LENGTH:
+                return False, f"Passwort muss mindestens {MIN_PASSWORD_LENGTH} Zeichen haben"
+            
+            # Altes Passwort mit SQL prüfen
+            conn = sqlite3.connect(DB_NAME)
+            c = conn.cursor()
+
+            # Aktuelles Passwort abrufen
+            c.execute("""
+                    SELECT hashed_password, user_id
+                    FROM users
+                    WHERE username = ?
+                    """, (username,))
+            
+            result = c.fetchone()
+
+            if not result:
+                conn.close()
+                return False, "Benutzer nicht gefunden"
+                
+            current_hash, user_id = result
+
+            # Altes Passwort prüfen
+            if not bcrypt.checkpw(old_password.encode("utf-8"), current_hash):
+                conn.close()
+                return False, "Aktuelles Passwort ist falsch"
+            
+            # Neues Passwort hashen und speichern
+            new_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt())
+
+            c.execute("""
+                    UPDATE users
+                    SET hashed_password = ?
+                    WHERE user_id = ?
+                    """, (new_hash, user_id))
+            
+            conn.commit()
+            conn.close()
+
+            return True, "Passwort erfolgreich geändert!"
+        
+        except Exception as e:
+            if "conn" in locals():
+                conn.close()
+            return False, f"Fehler beim Passwort-Wechsel: {str(e)}"
+            
 
